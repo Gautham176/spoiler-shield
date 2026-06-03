@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Spoiler Shield</title>
+  <link rel="stylesheet" href="./popup.css">
+</head>
+<body>
+  <header>
+    <h1>🛡️ Spoiler Shield</h1>
+    <label class="toggle">
+      <input type="checkbox" id="enabled-toggle">
+      <span>Enabled</span>
+    </label>
+  </header>
+
+  <section>
+    <form id="add-form">
+      <input
+        type="text"
+        id="keyword-input"
+        placeholder="Add a keyword (e.g., Succession)"
+        autocomplete="off"
+        required
+      >
+      <button type="submit">Add</button>
+    </form>
+
+    <ul id="keyword-list"></ul>
+    <p id="empty-state" hidden>No keywords yet. Add one above.</p>
+  </section>
+
+  <script type="module" src="./popup.ts"></script>
+</body>
+</html>
