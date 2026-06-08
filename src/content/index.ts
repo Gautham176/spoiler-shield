@@ -1,3 +1,5 @@
+import { getAllContainerSelector } from '../containers';
+
 const SHIELD_CLASS = 'spoiler-shield-hidden';
 
 type Settings = {
@@ -65,6 +67,18 @@ function hideElement(el: HTMLElement) {
   }, { once: true });
 }
 
+function dedupeByAncestry(targets: Set<HTMLElement>): HTMLElement[] {
+  const elementsArray = Array.from(targets);
+
+  return elementsArray.filter(current => {
+    return !elementsArray.some(potentialAncestor => {
+      if (potentialAncestor === current) return false;
+      
+      return potentialAncestor.contains(current);
+    });
+  });
+}
+
 // Walk the page and hide anything containing a keyword.
 function scanPage(settings: Settings) {
   if (!settings.enabled || settings.keywords.length === 0) {
@@ -72,25 +86,69 @@ function scanPage(settings: Settings) {
     return;
   }
 
-  // Get all text-bearing content elements. Divs deliberately excluded —
-  // they're too generic and would blur entire layout containers.
-  // Week 2 will replace this with smarter ancestor selection.
-  const candidates = document.body.querySelectorAll<HTMLElement>(
-    'p, li, h1, h2, h3, h4, blockquote'
+  const containerSelector = getAllContainerSelector();
+  const targets = new Set<HTMLElement>();
+
+  // TreeWalker iterates DOM nodes by type. SHOW_TEXT means we only
+  // get text nodes — no element nodes, no comments, no other noise.
+  // The acceptNode filter lets us further skip text we don't care about.
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode(node) {
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+
+        // Skip text inside non-visual elements. Script/style content
+        // can contain keywords coincidentally (a YouTube config blob
+        // mentioning "Succession") and we don't want false positives.
+        const tag = parent.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' ||
+            tag === 'NOSCRIPT' || tag === 'TEMPLATE') {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        // Skip already-hidden subtrees so re-scans don't
+        // re-process content we've already handled.
+        if (parent.closest(`.${SHIELD_CLASS}`)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        // Skip pure whitespace — common between elements, never matches.
+        if (!node.nodeValue?.trim()) {
+          return NodeFilter.FILTER_REJECT;
+        }
+
+        return NodeFilter.FILTER_ACCEPT;
+      },
+    }
   );
 
-  console.log('[Spoiler Shield] scanning, found', candidates.length, 'candidates');
+  let matchCount = 0;
+  let textNode: Node | null;
+  while ((textNode = walker.nextNode()) !== null) {
+    const text = textNode.nodeValue!;
+    if (!containsKeyword(text, settings.keywords)) continue;
 
-  for (const el of candidates) {
-    // Skip if an ancestor is already hidden (avoids double-hiding nested matches).
-    if (el.closest(`.${SHIELD_CLASS}`)) continue;
+    const parent = textNode.parentElement!;
+    // container if registered, parent otherwise.
+    const target = parent.closest<HTMLElement>(containerSelector) ?? parent;
 
-    // Use innerText (not textContent) so we only match what's actually visible.
-    const text = el.innerText;
-    if (text && containsKeyword(text, settings.keywords)) {
-      console.log('[Spoiler Shield] hiding', el.tagName, el);
-      hideElement(el);
-    }
+    matchCount++;
+    console.log(
+      '[Spoiler Shield] match in', parent.tagName,
+      '→ target', target.tagName, target
+    );
+    targets.add(target);
+  }
+
+  console.log('[Spoiler Shield] scan complete:', matchCount,
+              'matches,', targets.size, 'unique targets');
+
+  const finalTargets = dedupeByAncestry(targets);
+  for (const target of finalTargets) {
+    hideElement(target);
   }
 }
 
@@ -113,7 +171,6 @@ async function init() {
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.keywords || changes.enabled) {
       // Easiest re-application: reload the page.
-      // We'll replace this with in-place re-scanning in Week 3.
       location.reload();
     }
   });
