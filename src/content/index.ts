@@ -1,11 +1,15 @@
 import { getAllContainerSelector } from '../containers';
 
 const SHIELD_CLASS = 'spoiler-shield-hidden';
+const REVEALED_CLASS = 'spoiler-shield-revealed';
 
 type Settings = {
   keywords: string[];
   enabled: boolean;
 };
+
+// Tracks elements that we have intentionally blurred across virtual DOM updates.
+const blurredElements = new WeakSet<HTMLElement>();
 
 // Inject CSS once, at the top of the page.
 function injectStyles() {
@@ -42,8 +46,8 @@ function injectStyles() {
       pointer-events: none;
       text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
     }
-    .${SHIELD_CLASS}.revealed::before,
-    .${SHIELD_CLASS}.revealed::after {
+    .${SHIELD_CLASS}.${REVEALED_CLASS}::before,
+    .${SHIELD_CLASS}.${REVEALED_CLASS}::after {
       display: none;
     }
   `;
@@ -59,14 +63,18 @@ function containsKeyword(text: string, keywords: string[]): boolean {
 // Hide an element by adding our class + a click-to-reveal handler.
 function hideElement(el: HTMLElement) {
   if (el.classList.contains(SHIELD_CLASS)) return; // already hidden
+  
   el.classList.add(SHIELD_CLASS);
+  blurredElements.add(el); 
+
   el.addEventListener('click', (e) => {
     e.stopPropagation();
     e.preventDefault();
-    el.classList.add('revealed');
+    el.classList.add(REVEALED_CLASS);
   }, { once: true });
 }
 
+// Return only elements from targets that are not descendants of any other element in targets.
 function dedupeByAncestry(targets: Set<HTMLElement>): HTMLElement[] {
   const elementsArray = Array.from(targets);
 
@@ -79,6 +87,7 @@ function dedupeByAncestry(targets: Set<HTMLElement>): HTMLElement[] {
   });
 }
 
+// Walk a specific subtree and hide anything containing a keyword.
 function scanRoot(root: Element, settings: Settings): void {
   if (!settings.enabled || settings.keywords.length === 0) {
     return;
@@ -160,6 +169,21 @@ function startObserver(settings: Settings): void {
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
+      // Direct class modification defense: Intercept elements stripped of shielding by React
+      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+        const target = mutation.target;
+        if (
+          target instanceof HTMLElement && 
+          blurredElements.has(target) && 
+          !target.classList.contains(SHIELD_CLASS) &&
+          !target.classList.contains(REVEALED_CLASS)
+        ) {
+          target.classList.add(SHIELD_CLASS);
+        }
+        continue;
+      }
+
+      // Collect structural shifts safely
       for (const node of mutation.addedNodes) {
         if (node instanceof Element) {
           pendingNodes.add(node);
@@ -175,6 +199,8 @@ function startObserver(settings: Settings): void {
   observer.observe(document.body, {
     childList: true,
     subtree: true,
+    attributes: true,
+    attributeFilter: ['class'],
   });
 }
 
@@ -198,9 +224,6 @@ async function init() {
     bootstrap();
   }
 
-  // Settings changes still trigger a page reload for now — both
-  // observer and scan get re-initialized with the new settings
-  // automatically. We can replace this with a live-update path later.
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.keywords || changes.enabled) {
       location.reload();
