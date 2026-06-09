@@ -79,43 +79,32 @@ function dedupeByAncestry(targets: Set<HTMLElement>): HTMLElement[] {
   });
 }
 
-// Walk the page and hide anything containing a keyword.
-function scanPage(settings: Settings) {
+function scanRoot(root: Element, settings: Settings): void {
   if (!settings.enabled || settings.keywords.length === 0) {
-    console.log('[Spoiler Shield] scan skipped (disabled or no keywords)');
     return;
   }
 
   const containerSelector = getAllContainerSelector();
   const targets = new Set<HTMLElement>();
 
-  // TreeWalker iterates DOM nodes by type. SHOW_TEXT means we only
-  // get text nodes — no element nodes, no comments, no other noise.
-  // The acceptNode filter lets us further skip text we don't care about.
   const walker = document.createTreeWalker(
-    document.body,
+    root,
     NodeFilter.SHOW_TEXT,
     {
       acceptNode(node) {
         const parent = node.parentElement;
         if (!parent) return NodeFilter.FILTER_REJECT;
 
-        // Skip text inside non-visual elements. Script/style content
-        // can contain keywords coincidentally (a YouTube config blob
-        // mentioning "Succession") and we don't want false positives.
         const tag = parent.tagName;
         if (tag === 'SCRIPT' || tag === 'STYLE' ||
             tag === 'NOSCRIPT' || tag === 'TEMPLATE') {
           return NodeFilter.FILTER_REJECT;
         }
 
-        // Skip already-hidden subtrees so re-scans don't
-        // re-process content we've already handled.
         if (parent.closest(`.${SHIELD_CLASS}`)) {
           return NodeFilter.FILTER_REJECT;
         }
 
-        // Skip pure whitespace — common between elements, never matches.
         if (!node.nodeValue?.trim()) {
           return NodeFilter.FILTER_REJECT;
         }
@@ -132,24 +121,61 @@ function scanPage(settings: Settings) {
     if (!containsKeyword(text, settings.keywords)) continue;
 
     const parent = textNode.parentElement!;
-    // container if registered, parent otherwise.
     const target = parent.closest<HTMLElement>(containerSelector) ?? parent;
 
     matchCount++;
-    console.log(
-      '[Spoiler Shield] match in', parent.tagName,
-      '→ target', target.tagName, target
-    );
     targets.add(target);
   }
 
-  console.log('[Spoiler Shield] scan complete:', matchCount,
-              'matches,', targets.size, 'unique targets');
+  if (matchCount > 0) {
+    console.log(
+      `[Spoiler Shield] scanRoot: found ${matchCount} matches → ${targets.size} unique targets inside`, 
+      root
+    );
+  }
 
   const finalTargets = dedupeByAncestry(targets);
   for (const target of finalTargets) {
     hideElement(target);
   }
+}
+
+function scanPage(settings: Settings): void {
+  scanRoot(document.body, settings);
+}
+
+function startObserver(settings: Settings): void {
+  const pendingNodes = new Set<Element>();
+  let pendingFlush: number | null = null;
+
+  function flush() {
+    pendingFlush = null;
+
+    for (const element of pendingNodes) {
+      scanRoot(element, settings);
+    }
+
+    pendingNodes.clear();
+  }
+
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node instanceof Element) {
+          pendingNodes.add(node);
+        }
+      }
+    }
+
+    if (pendingFlush === null && pendingNodes.size > 0) {
+      pendingFlush = requestAnimationFrame(flush);
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
 }
 
 async function init() {
@@ -161,16 +187,22 @@ async function init() {
   console.log('[Spoiler Shield] active', settings);
   injectStyles();
 
+  const bootstrap = () => {
+    scanPage(settings);     // initial scan over existing DOM
+    startObserver(settings); // catch everything added later
+  };
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => scanPage(settings));
+    document.addEventListener('DOMContentLoaded', bootstrap);
   } else {
-    scanPage(settings);
+    bootstrap();
   }
 
-  // Re-scan when settings change in another tab/popup.
+  // Settings changes still trigger a page reload for now — both
+  // observer and scan get re-initialized with the new settings
+  // automatically. We can replace this with a live-update path later.
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.keywords || changes.enabled) {
-      // Easiest re-application: reload the page.
       location.reload();
     }
   });
