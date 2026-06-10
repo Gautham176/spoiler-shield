@@ -15,6 +15,9 @@ const blurredElements = new WeakSet<HTMLElement>();
 function injectStyles() {
   const style = document.createElement('style');
   style.textContent = `
+    [data-spoiler-pending] {
+      visibility: hidden;
+    }
     .${SHIELD_CLASS} {
       position: relative;
       cursor: pointer;
@@ -161,7 +164,11 @@ function startObserver(settings: Settings): void {
     pendingFlush = null;
 
     for (const element of pendingNodes) {
-      scanRoot(element, settings);
+      try {
+        scanRoot(element, settings);
+      } finally {
+        element.removeAttribute('data-spoiler-pending');
+      }
     }
 
     pendingNodes.clear();
@@ -186,6 +193,10 @@ function startObserver(settings: Settings): void {
       // Collect structural shifts safely
       for (const node of mutation.addedNodes) {
         if (node instanceof Element) {
+          node.setAttribute('data-spoiler-pending', 'true');
+          setTimeout(() => {
+            node.removeAttribute('data-spoiler-pending');
+          }, 2000);
           pendingNodes.add(node);
         }
       }
