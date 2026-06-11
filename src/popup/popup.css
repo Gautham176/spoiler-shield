@@ -280,3 +280,14 @@ li button:hover {
 .expansion-list button:hover {
   color: #c00;
 }
+.secondary {
+  background: transparent;
+  color: #555;
+  border: 1px solid #d4d4d4;
+}
+
+.secondary:hover {
+  background: #f5f5f5;
+  color: #c00;
+  border-color: #c00;
+}

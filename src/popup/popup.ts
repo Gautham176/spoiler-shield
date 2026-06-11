@@ -104,7 +104,7 @@ function buildKeywordItem(kw: Keyword): HTMLLIElement {
   header.appendChild(meta);
 
   // Regenerate button — shown when no expansions and not currently loading.
-  if (kw.expansions.length === 0 && state?.status !== 'loading') {
+  if (state?.status !== 'loading') {
     const regen = document.createElement('button');
     regen.className = 'regenerate-btn';
     regen.textContent = '↻';
@@ -264,6 +264,14 @@ async function init(): Promise<void> {
   const keyInput = document.getElementById('api-key-input') as HTMLInputElement;
   const saveBtn = document.getElementById('save-key-btn') as HTMLButtonElement;
   const badge = document.getElementById('key-status-badge') as HTMLSpanElement;
+  const removeKeyBtn = document.getElementById('remove-key-btn') as HTMLButtonElement;
+  
+  removeKeyBtn.addEventListener('click', async () => {
+    await chrome.storage.local.remove('geminiApiKey');
+    badge.textContent = '';
+    keyInput.value = '';
+    setStatus('Removed', 'success');
+  });
 
   if (await getApiKey()) {
     badge.textContent = '✓ Saved';
