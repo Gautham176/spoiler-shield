@@ -8,11 +8,29 @@
 <body>
   <header>
     <h1>🛡️ Spoiler Shield</h1>
-    <label class="toggle">
-      <input type="checkbox" id="enabled-toggle">
-      <span>Enabled</span>
-    </label>
+    <div class="header-actions">
+      <button id="settings-btn" class="icon-btn" aria-label="Settings" title="Settings">⚙️</button>
+      <label class="toggle">
+        <input type="checkbox" id="enabled-toggle">
+        <span>Enabled</span>
+      </label>
+    </div>
   </header>
+
+  <section id="settings-panel" hidden>
+    <label class="field">
+      <span>Gemini API key <span id="key-status-badge" class="badge"></span></span>
+      <input type="password" id="api-key-input" placeholder="Paste your key" autocomplete="off">
+    </label>
+    <p class="help">
+      <a href="https://aistudio.google.com/" target="_blank" rel="noreferrer">Get a free key →</a>
+      Stored locally, never synced. Free tier prompts may be used by Google for training.
+    </p>
+    <div class="settings-actions">
+      <button id="save-key-btn">Save</button>
+      <span id="key-status" class="status"></span>
+    </div>
+  </section>
 
   <section>
     <form id="add-form">

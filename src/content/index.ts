@@ -1,12 +1,8 @@
 import { getAllContainerSelector } from '../containers';
+import { migrateSettings, type Settings, type Keyword } from '../settings';
 
 const SHIELD_CLASS = 'spoiler-shield-hidden';
 const REVEALED_CLASS = 'spoiler-shield-revealed';
-
-type Settings = {
-  keywords: string[];
-  enabled: boolean;
-};
 
 // Tracks elements that we have intentionally blurred across virtual DOM updates.
 const blurredElements = new WeakSet<HTMLElement>();
@@ -77,6 +73,19 @@ function hideElement(el: HTMLElement) {
   }, { once: true });
 }
 
+// Flatten Keyword[] into a string[] for matching. Includes expansions
+// only when expansionEnabled is true.
+function flattenKeywords(keywords: Keyword[]): string[] {
+  const result: string[] = [];
+  for (const kw of keywords) {
+    result.push(kw.raw);
+    if (kw.expansionEnabled) {
+      result.push(...kw.expansions);
+    }
+  }
+  return result;
+}
+
 // Return only elements from targets that are not descendants of any other element in targets.
 function dedupeByAncestry(targets: Set<HTMLElement>): HTMLElement[] {
   const elementsArray = Array.from(targets);
@@ -95,6 +104,7 @@ function scanRoot(root: Element, settings: Settings): void {
   if (!settings.enabled || settings.keywords.length === 0) {
     return;
   }
+  const allTerms = flattenKeywords(settings.keywords);
 
   const containerSelector = getAllContainerSelector();
   const targets = new Set<HTMLElement>();
@@ -130,7 +140,7 @@ function scanRoot(root: Element, settings: Settings): void {
   let textNode: Node | null;
   while ((textNode = walker.nextNode()) !== null) {
     const text = textNode.nodeValue!;
-    if (!containsKeyword(text, settings.keywords)) continue;
+    if (!containsKeyword(text, allTerms)) continue;
 
     const parent = textNode.parentElement!;
     const target = parent.closest<HTMLElement>(containerSelector) ?? parent;
@@ -216,10 +226,8 @@ function startObserver(settings: Settings): void {
 }
 
 async function init() {
-  const settings = (await chrome.storage.sync.get({
-    keywords: [],
-    enabled: true,
-  })) as Settings;
+  const rawSettings = await chrome.storage.sync.get(null);
+  const settings = migrateSettings(rawSettings);
 
   console.log('[Spoiler Shield] active', settings);
   injectStyles();
