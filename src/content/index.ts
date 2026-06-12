@@ -1,5 +1,5 @@
 import { getAllContainerSelector } from '../containers';
-import { migrateSettings, type Settings, type Keyword } from '../settings';
+import { migrateSettings, shouldScan, type Settings, type Keyword } from '../settings';
 
 const SHIELD_CLASS = 'spoiler-shield-hidden';
 const REVEALED_CLASS = 'spoiler-shield-revealed';
@@ -101,7 +101,7 @@ function dedupeByAncestry(targets: Set<HTMLElement>): HTMLElement[] {
 
 // Walk a specific subtree and hide anything containing a keyword.
 function scanRoot(root: Element, settings: Settings): void {
-  if (!settings.enabled || settings.keywords.length === 0) {
+  if (!shouldScan(settings, window.location.hostname) || settings.keywords.length === 0) {
     return;
   }
   const allTerms = flattenKeywords(settings.keywords);
@@ -243,9 +243,26 @@ async function init() {
     bootstrap();
   }
 
-  chrome.storage.onChanged.addListener((changes) => {
-    if (changes.keywords || changes.enabled) {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'sync') return;
+
+    // Most settings affect every tab — reload them all.
+    if (changes.keywords || changes.enabled || changes.snoozedUntil) {
       location.reload();
+      return;
+    }
+
+    // disabledSites is the only change that's hostname-specific.
+    // Only reload if our hostname's disabled state actually flipped.
+    if (changes.disabledSites) {
+      const oldList = (changes.disabledSites.oldValue ?? []) as string[];
+      const newList = (changes.disabledSites.newValue ?? []) as string[];
+      const host = window.location.hostname.toLowerCase();
+      const wasDisabled = oldList.some(s => s.toLowerCase() === host);
+      const isDisabled = newList.some(s => s.toLowerCase() === host);
+      if (wasDisabled !== isDisabled) {
+        location.reload();
+      }
     }
   });
 }

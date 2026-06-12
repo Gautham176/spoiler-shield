@@ -291,3 +291,49 @@ li button:hover {
   color: #c00;
   border-color: #c00;
 }
+.current-page {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: #f5f5f5;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  gap: 8px;
+}
+
+.toggle.small {
+  font-size: 12px;
+}
+
+.toggle.small input:disabled + span {
+  color: #aaa;
+  cursor: not-allowed;
+}
+
+#current-hostname {
+  font-family: ui-monospace, monospace;
+  color: #1a1a1a;
+}
+
+.snooze-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  background: white;
+  color: #555;
+  border: 1px solid #d4d4d4;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.snooze-btn:hover { background: #ececec; }
+
+.snooze-btn.active {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.snooze-btn.active:hover { background: #fde68a; }

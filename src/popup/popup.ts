@@ -5,6 +5,91 @@ import { expandKeyword, GeminiError } from '../gemini';
 type ExpansionState = { status: 'loading' } | { status: 'error'; message: string };
 const transientState = new Map<string, ExpansionState>();
 
+async function getCurrentHostname(): Promise<string> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url) return '';
+  try {
+    const url = new URL(tab.url);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return '';
+    }
+    return url.hostname;
+  } catch {
+    return '';
+  }
+}
+
+async function setupCurrentPageControls(): Promise<void> {
+  const hostname = await getCurrentHostname();
+  const hostnameSpan = document.getElementById('current-hostname') as HTMLSpanElement;
+  const siteToggle = document.getElementById('site-toggle') as HTMLInputElement;
+  const snoozeBtn = document.getElementById('snooze-btn') as HTMLButtonElement;
+
+  if (!hostname) {
+    // No accessible tab URL (chrome://, about:blank, etc).
+    // Disable the per-site toggle but keep snooze functional.
+    hostnameSpan.textContent = 'this site';
+    siteToggle.disabled = true;
+  } else {
+    hostnameSpan.textContent = hostname;
+  }
+
+  const settings = await getSettings();
+
+  // Per-site toggle initial state
+  const lcHost = hostname.toLowerCase();
+  const isDisabled = settings.disabledSites.some(s => s.toLowerCase() === lcHost);
+  siteToggle.checked = isDisabled;
+
+  siteToggle.addEventListener('change', async () => {
+    if (!hostname) return;
+    const current = await getSettings();
+    let updated: string[];
+    if (siteToggle.checked) {
+      updated = current.disabledSites.some(s => s.toLowerCase() === lcHost)
+        ? current.disabledSites
+        : [...current.disabledSites, hostname];
+    } else {
+      updated = current.disabledSites.filter(s => s.toLowerCase() !== lcHost);
+    }
+    await setSettings({ disabledSites: updated });
+  });
+
+  // Snooze button initial state + click
+  function renderSnoozeButton(snoozedUntil: number): void {
+    const now = Date.now();
+    if (snoozedUntil > now) {
+      snoozeBtn.textContent = `Snoozed · ${formatRemainingTime(snoozedUntil - now)} left`;
+      snoozeBtn.classList.add('active');
+      snoozeBtn.title = 'Click to unsnooze';
+    } else {
+      snoozeBtn.textContent = 'Snooze 30 min';
+      snoozeBtn.classList.remove('active');
+      snoozeBtn.title = 'Disable for 30 minutes';
+    }
+  }
+
+  renderSnoozeButton(settings.snoozedUntil);
+
+  snoozeBtn.addEventListener('click', async () => {
+    const current = await getSettings();
+    const isActive = current.snoozedUntil > Date.now();
+    const newSnoozedUntil = isActive ? 0 : Date.now() + 30 * 60 * 1000;
+    await setSettings({ snoozedUntil: newSnoozedUntil });
+    renderSnoozeButton(newSnoozedUntil);
+  });
+}
+
+function formatRemainingTime(ms: number): string {
+  const totalMinutes = Math.ceil(ms / 60000);
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}h ${minutes}m`;
+  }
+  return `${totalMinutes}m`;
+}
+
 async function getSettings(): Promise<Settings> {
   const raw = await chrome.storage.sync.get(null);
   return migrateSettings(raw);
@@ -288,6 +373,8 @@ async function init(): Promise<void> {
     badge.textContent = '✓ Saved';
     setStatus('Saved', 'success');
   });
+
+  await setupCurrentPageControls();
 }
 
 init();
