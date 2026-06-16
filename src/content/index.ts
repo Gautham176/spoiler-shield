@@ -4,8 +4,13 @@ import { migrateSettings, shouldScan, type Settings, type Keyword } from '../set
 const SHIELD_CLASS = 'spoiler-shield-hidden';
 const REVEALED_CLASS = 'spoiler-shield-revealed';
 
-// Tracks elements that we have intentionally blurred across virtual DOM updates.
-const blurredElements = new WeakSet<HTMLElement>();
+// Tracks elements we have intentionally blurred. Reassigned (not mutated)
+// in unblurAll so future scans treat everything as fresh.
+let blurredElements = new WeakSet<HTMLElement>();
+
+// Module-scoped settings — updated in place by the storage listener so that
+// scanRoot, the observer, and refreshFromSettings always read the latest value.
+let currentSettings: Settings;
 
 // Inject CSS once, at the top of the page.
 function injectStyles() {
@@ -59,18 +64,23 @@ function containsKeyword(text: string, keywords: string[]): boolean {
   return keywords.some(kw => lower.includes(kw.toLowerCase()));
 }
 
+// Module-level reveal handler so addEventListener and removeEventListener
+// can reference the same function. Inline anonymous handlers can't be removed
+// (every reference is a new function), so they accumulate on re-blur.
+function revealHandler(e: Event) {
+  e.stopPropagation();
+  e.preventDefault();
+  const target = e.currentTarget as HTMLElement;
+  target.classList.add(REVEALED_CLASS);
+}
+
 // Hide an element by adding our class + a click-to-reveal handler.
 function hideElement(el: HTMLElement) {
   if (el.classList.contains(SHIELD_CLASS)) return; // already hidden
-  
-  el.classList.add(SHIELD_CLASS);
-  blurredElements.add(el); 
 
-  el.addEventListener('click', (e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    el.classList.add(REVEALED_CLASS);
-  }, { once: true });
+  el.classList.add(SHIELD_CLASS);
+  blurredElements.add(el);
+  el.addEventListener('click', revealHandler, { once: true });
 }
 
 // Flatten Keyword[] into a string[] for matching. Includes expansions
@@ -93,18 +103,18 @@ function dedupeByAncestry(targets: Set<HTMLElement>): HTMLElement[] {
   return elementsArray.filter(current => {
     return !elementsArray.some(potentialAncestor => {
       if (potentialAncestor === current) return false;
-      
       return potentialAncestor.contains(current);
     });
   });
 }
 
 // Walk a specific subtree and hide anything containing a keyword.
-function scanRoot(root: Element, settings: Settings): void {
-  if (!shouldScan(settings, window.location.hostname) || settings.keywords.length === 0) {
+// Reads currentSettings directly — callers don't pass it in.
+function scanRoot(root: Element): void {
+  if (!shouldScan(currentSettings, window.location.hostname) || currentSettings.keywords.length === 0) {
     return;
   }
-  const allTerms = flattenKeywords(settings.keywords);
+  const allTerms = flattenKeywords(currentSettings.keywords);
 
   const containerSelector = getAllContainerSelector();
   const targets = new Set<HTMLElement>();
@@ -151,7 +161,7 @@ function scanRoot(root: Element, settings: Settings): void {
 
   if (matchCount > 0) {
     console.log(
-      `[Spoiler Shield] scanRoot: found ${matchCount} matches → ${targets.size} unique targets inside`, 
+      `[Spoiler Shield] scanRoot: found ${matchCount} matches → ${targets.size} unique targets inside`,
       root
     );
   }
@@ -162,11 +172,40 @@ function scanRoot(root: Element, settings: Settings): void {
   }
 }
 
-function scanPage(settings: Settings): void {
-  scanRoot(document.body, settings);
+function scanPage(): void {
+  scanRoot(document.body);
 }
 
-function startObserver(settings: Settings): void {
+// Remove blur from every currently-blurred element on the page and reset
+// the tracking set. Used when settings change so we can re-scan from scratch
+// without leaving stale blur behind.
+function unblurAll(): void {
+  // Query DOM by class rather than iterate WeakSet (which isn't iterable).
+  // Bonus: correctly excludes elements that already lost their class via
+  // React re-renders — they don't need unblurring.
+  const blurred = document.querySelectorAll<HTMLElement>(`.${SHIELD_CLASS}`);
+  for (const el of blurred) {
+    el.classList.remove(SHIELD_CLASS);
+    el.classList.remove(REVEALED_CLASS);
+    el.removeEventListener('click', revealHandler);
+  }
+  // Replace the WeakSet entirely; the old one is garbage-collected.
+  blurredElements = new WeakSet<HTMLElement>();
+}
+
+// Called whenever settings change. Clears existing blur, re-evaluates
+// shouldScan, and re-blurs based on the new settings.
+function refreshFromSettings(): void {
+  unblurAll();
+  if (
+    shouldScan(currentSettings, window.location.hostname) &&
+    currentSettings.keywords.length > 0
+  ) {
+    scanRoot(document.body);
+  }
+}
+
+function startObserver(): void {
   const pendingNodes = new Set<Element>();
   let pendingFlush: number | null = null;
 
@@ -175,7 +214,7 @@ function startObserver(settings: Settings): void {
 
     for (const element of pendingNodes) {
       try {
-        scanRoot(element, settings);
+        scanRoot(element);
       } finally {
         element.removeAttribute('data-spoiler-pending');
       }
@@ -186,12 +225,12 @@ function startObserver(settings: Settings): void {
 
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
-      // Direct class modification defense: Intercept elements stripped of shielding by React
+      // Direct class modification defense: intercept elements stripped of shielding by React
       if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
         const target = mutation.target;
         if (
-          target instanceof HTMLElement && 
-          blurredElements.has(target) && 
+          target instanceof HTMLElement &&
+          blurredElements.has(target) &&
           !target.classList.contains(SHIELD_CLASS) &&
           !target.classList.contains(REVEALED_CLASS)
         ) {
@@ -227,14 +266,14 @@ function startObserver(settings: Settings): void {
 
 async function init() {
   const rawSettings = await chrome.storage.sync.get(null);
-  const settings = migrateSettings(rawSettings);
+  currentSettings = migrateSettings(rawSettings);
 
-  console.log('[Spoiler Shield] active', settings);
+  console.log('[Spoiler Shield] active', currentSettings);
   injectStyles();
 
   const bootstrap = () => {
-    scanPage(settings);     // initial scan over existing DOM
-    startObserver(settings); // catch everything added later
+    scanPage();      // initial scan over existing DOM
+    startObserver(); // catch everything added later
   };
 
   if (document.readyState === 'loading') {
@@ -243,27 +282,14 @@ async function init() {
     bootstrap();
   }
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
+  // Update in place when settings change — no reload, no scroll loss, no
+  // cross-tab disruption. Works uniformly for keywords, enabled, snooze,
+  // and per-site disable changes.
+  chrome.storage.onChanged.addListener(async (_changes, areaName) => {
     if (areaName !== 'sync') return;
-
-    // Most settings affect every tab — reload them all.
-    if (changes.keywords || changes.enabled || changes.snoozedUntil) {
-      location.reload();
-      return;
-    }
-
-    // disabledSites is the only change that's hostname-specific.
-    // Only reload if our hostname's disabled state actually flipped.
-    if (changes.disabledSites) {
-      const oldList = (changes.disabledSites.oldValue ?? []) as string[];
-      const newList = (changes.disabledSites.newValue ?? []) as string[];
-      const host = window.location.hostname.toLowerCase();
-      const wasDisabled = oldList.some(s => s.toLowerCase() === host);
-      const isDisabled = newList.some(s => s.toLowerCase() === host);
-      if (wasDisabled !== isDisabled) {
-        location.reload();
-      }
-    }
+    const rawUpdated = await chrome.storage.sync.get(null);
+    currentSettings = migrateSettings(rawUpdated);
+    refreshFromSettings();
   });
 }
 
