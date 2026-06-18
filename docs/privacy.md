@@ -75,4 +75,4 @@ Questions or concerns: please open an issue at https://github.com/Gautham176/spo
 
 ---
 
-*Spoiler Cloak is open source. The full source code is available at https://github.com/YOUR_GITHUB_USERNAME/spoiler-shield.*
+*Spoiler Cloak is open source. The full source code is available at https://github.com/Gautham176/spoiler-shield.*
