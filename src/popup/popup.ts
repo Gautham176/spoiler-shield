@@ -1,5 +1,6 @@
 import { migrateSettings, type Settings, type Keyword } from '../settings';
 import { expandKeyword, GeminiError } from '../gemini';
+import { STARTER_TOPICS, CATEGORY_LABELS, type StarterCategory } from '../starterLists';
 
 // Transient UI state — not persisted. Keys are the raw keyword string.
 type ExpansionState = { status: 'loading' } | { status: 'error'; message: string };
@@ -160,6 +161,7 @@ function renderList(keywords: Keyword[]): void {
   for (const kw of keywords) {
     list.appendChild(buildKeywordItem(kw));
   }
+  syncStarterListButtons(keywords);
 }
 
 function buildKeywordItem(kw: Keyword): HTMLLIElement {
@@ -259,7 +261,7 @@ function buildKeywordItem(kw: Keyword): HTMLLIElement {
   return li;
 }
 
-async function addKeyword(raw: string): Promise<void> {
+async function addKeyword(raw: string, prebakedExpansions?: string[]): Promise<void> {
   const keyword = raw.trim();
   if (!keyword) return;
 
@@ -268,15 +270,18 @@ async function addKeyword(raw: string): Promise<void> {
 
   const newKeyword: Keyword = {
     raw: keyword,
-    expansions: [],
+    expansions: prebakedExpansions ?? [],
     expansionEnabled: true,
   };
   const updated = [...keywords, newKeyword];
   await setSettings({ keywords: updated });
   renderList(updated);
 
-  // Fire and forget — expansion runs in background, UI updates when complete.
-  void fetchExpansionsFor(keyword);
+  // Only trigger AI expansion if no pre-baked expansions were provided.
+  // Starter topics ship with their own expansion list; the AI call would be wasteful.
+  if (!prebakedExpansions || prebakedExpansions.length === 0) {
+    void fetchExpansionsFor(keyword);
+  }
 }
 
 async function removeKeyword(keyword: string): Promise<void> {
@@ -316,6 +321,88 @@ function setStatus(message: string, type: 'success' | 'error' | '' = ''): void {
         el.className = 'status';
       }
     }, 3000);
+  }
+}
+
+async function setupStarterLists(): Promise<void> {
+  const toggle = document.getElementById('starter-lists-toggle') as HTMLButtonElement;
+  const content = document.getElementById('starter-lists-content') as HTMLDivElement;
+  const chevron = document.getElementById('starter-lists-chevron') as HTMLSpanElement;
+
+  const settings = await getSettings();
+  const existingKeywords = new Set(settings.keywords.map(k => k.raw.toLowerCase()));
+
+  const categories: StarterCategory[] = ['tv', 'movies', 'sports', 'games'];
+
+  for (const category of categories) {
+    const topics = STARTER_TOPICS.filter(t => t.category === category);
+    if (topics.length === 0) continue;
+
+    const section = document.createElement('div');
+    section.className = 'starter-category';
+
+    const label = document.createElement('div');
+    label.className = 'starter-category-label';
+    label.textContent = CATEGORY_LABELS[category];
+    section.appendChild(label);
+
+    const topicsWrap = document.createElement('div');
+    topicsWrap.className = 'starter-topics';
+
+    for (const topic of topics) {
+      const btn = document.createElement('button');
+      btn.className = 'starter-topic-btn';
+      btn.textContent = topic.name;
+      btn.dataset.topicName = topic.name.toLowerCase();
+
+      if (existingKeywords.has(topic.name.toLowerCase())) {
+        btn.classList.add('added');
+      }
+
+      btn.addEventListener('click', async () => {
+        if (btn.classList.contains('added')) {
+          // Find the actual stored keyword (case-insensitive) and remove by its exact raw value.
+          const { keywords } = await getSettings();
+          const match = keywords.find(k => k.raw.toLowerCase() === topic.name.toLowerCase());
+          if (match) {
+            await removeKeyword(match.raw);
+          }
+        } else {
+          await addKeyword(topic.name, topic.expansions);
+        }
+        // No manual class toggle here — syncStarterListButtons handles it via renderList.
+      });
+
+      topicsWrap.appendChild(btn);
+    }
+
+    section.appendChild(topicsWrap);
+    content.appendChild(section);
+  }
+
+  // Default open if no keywords exist — first-time users see the value immediately.
+  // Default closed for returning users — they don't need to see this every time.
+  if (settings.keywords.length === 0) {
+    content.hidden = false;
+    chevron.textContent = '▲';
+  }
+
+  toggle.addEventListener('click', () => {
+    const opening = content.hidden;
+    content.hidden = !opening;
+    chevron.textContent = opening ? '▲' : '▼';
+  });
+}
+
+function syncStarterListButtons(keywords: Keyword[]): void {
+  const existingSet = new Set(keywords.map(k => k.raw.toLowerCase()));
+  const buttons = document.querySelectorAll<HTMLButtonElement>('.starter-topic-btn');
+  for (const btn of buttons) {
+    const name = btn.dataset.topicName;
+    if (!name) continue;
+    const isAdded = existingSet.has(name);
+    btn.classList.toggle('added', isAdded);
+    btn.title = isAdded ? `Remove ${btn.textContent}` : `Add ${btn.textContent}`;
   }
 }
 
@@ -375,6 +462,7 @@ async function init(): Promise<void> {
   });
 
   await setupCurrentPageControls();
+  await setupStarterLists();
 }
 
 init();

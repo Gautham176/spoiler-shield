@@ -337,3 +337,79 @@ li button:hover {
 }
 
 .snooze-btn.active:hover { background: #fde68a; }
+
+.starter-lists {
+  border: 1px solid #e5e5e5;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+
+.starter-lists-toggle {
+  width: 100%;
+  padding: 10px 12px;
+  background: linear-gradient(to right, #fef3c7, #fde68a);
+  border: none;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #78350f;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.starter-lists-toggle:hover {
+  background: linear-gradient(to right, #fde68a, #fcd34d);
+}
+
+.starter-lists-chevron {
+  color: #78350f;
+}
+
+.starter-category {
+  margin-bottom: 10px;
+}
+
+.starter-category:last-child {
+  margin-bottom: 0;
+}
+
+.starter-category-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 5px;
+}
+
+.starter-topics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.starter-topic-btn {
+  padding: 4px 10px;
+  background: white;
+  border: 1px solid #d4d4d4;
+  border-radius: 12px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #333;
+}
+
+.starter-topic-btn.added {
+  background: #d1fae5;
+  border-color: #10b981;
+  color: #065f46;
+  cursor: pointer;
+}
+
+.starter-topic-btn.added:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
+  color: #991b1b;
+}
