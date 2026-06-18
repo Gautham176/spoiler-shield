@@ -161,7 +161,7 @@ function scanRoot(root: Element): void {
 
   if (matchCount > 0) {
     console.log(
-      `[Spoiler Shield] scanRoot: found ${matchCount} matches → ${targets.size} unique targets inside`,
+      `[Spoiler Cloak] scanRoot: found ${matchCount} matches → ${targets.size} unique targets inside`,
       root
     );
   }
@@ -268,7 +268,7 @@ async function init() {
   const rawSettings = await chrome.storage.sync.get(null);
   currentSettings = migrateSettings(rawSettings);
 
-  console.log('[Spoiler Shield] active', currentSettings);
+  console.log('[Spoiler Cloak] active', currentSettings);
   injectStyles();
 
   const bootstrap = () => {

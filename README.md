@@ -1,8 +1,8 @@
-# Spoiler Shield
+# Spoiler Cloak
 
 A Chrome extension that blurs spoilers about anything — TV shows, movies, sports, news — across any website. AI-assisted keyword expansion turns a single keyword like "Suits" into 15+ related terms (character names, locations, plot elements) so you catch references you wouldn't have thought to add yourself.
 
-![Spoiler Shield in action](docs/demo.gif)
+![Spoiler Cloak in action](docs/demo.gif)
 
 **[Install on the Chrome Web Store →](https://chrome.google.com/webstore/detail/EXTENSION_ID)** *(coming soon — pending review)*
 

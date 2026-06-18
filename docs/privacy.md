@@ -1,12 +1,12 @@
-# Privacy Policy — Spoiler Shield
+# Privacy Policy — Spoiler Cloak
 
 *Last updated: 13 June 2026*
 
-Spoiler Shield is a Chrome browser extension that blurs spoiler-related text on web pages. This privacy policy describes what data the extension handles, where it goes, and how you control it.
+Spoiler Cloak is a Chrome browser extension that blurs spoiler-related text on web pages. This privacy policy describes what data the extension handles, where it goes, and how you control it.
 
 ## Summary
 
-- **We collect nothing.** Spoiler Shield does not operate any backend server, run any analytics, or transmit data to its developer.
+- **We collect nothing.** Spoiler Cloak does not operate any backend server, run any analytics, or transmit data to its developer.
 - **Your keywords and settings sync via Chrome.** They are stored in your Chrome browser's built-in storage and synced through your Google account if Chrome Sync is enabled.
 - **Your Gemini API key never leaves your device.** It is stored only on the device where you entered it.
 - **Page content is never transmitted anywhere.** Keyword matching happens entirely in your browser.
@@ -75,4 +75,4 @@ Questions or concerns: please open an issue at https://github.com/Gautham176/spo
 
 ---
 
-*Spoiler Shield is open source. The full source code is available at https://github.com/YOUR_GITHUB_USERNAME/spoiler-shield.*
+*Spoiler Cloak is open source. The full source code is available at https://github.com/YOUR_GITHUB_USERNAME/spoiler-shield.*

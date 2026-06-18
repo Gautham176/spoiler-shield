@@ -1,7 +1,7 @@
 {
-  "name": "spoiler-shield",
+  "name": "spoiler-cloak",
   "version": "1.0.0",
-  "description": "Chrome extension that hides spoilers across the web in real time",
+  "description": "Chrome browser extension that blurs spoiler-related text on web pages",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
