@@ -8,11 +8,12 @@ A Chrome extension that blurs spoilers about anything — TV shows, movies, spor
 
 ## What it does
 
-- Add keywords for things you're avoiding spoilers about
-- Optionally expand each keyword via Google Gemini (free tier) — one keyword becomes a list of related terms
+- **One-click setup**: tap any popular topic — Succession, NFL, Marvel, GTA 6, and 19 more — to instantly add 15-25 related keywords (character names, players, locations, plot terms)
+- Add custom keywords too, optionally expanded via Google Gemini (free tier) — one keyword becomes a list of related terms
 - Browse normally; any text matching your keywords gets blurred in real-time on every website
 - Click any blurred element to reveal it
 - Per-site disable and 30-minute snooze for when you're done dodging
+- Settings changes apply instantly across all open tabs — no page reloads
 
 The matching runs entirely in your browser. Nothing about the pages you visit is ever sent anywhere.
 
@@ -57,13 +58,19 @@ Keyword expansion uses Gemini's `responseSchema` parameter rather than prompt-on
 
 The extension doesn't run a backend. Users provide their own free-tier Gemini API key (15 requests/min, 1000/day, no credit card). This was a deliberate design choice — operating cost is zero, no user data flows through any third-party server, and the privacy story is honest. The tradeoff is a setup step for users.
 
+### Bundled starter lists with pre-baked AI expansions
+
+The cold-start problem — new users opening an empty popup and having to set up an API key before getting any value — is solved by shipping 23 curated topics with their AI expansions pre-generated and baked into the extension bundle. One click adds the topic + 15-25 expansion terms instantly. No API call needed at click time. The AI expander becomes the path for custom topics rather than the gateway to any value at all. Combined with the optimistic-add pattern in the popup, install-to-first-blur is two clicks.
+
 ### Centralized `shouldScan` rule
 
 Whether to scan a given page is decided by a single pure function: `shouldScan(settings, hostname) → boolean`. It encapsulates the master enabled toggle, the snooze timestamp check, and the per-site disabled list. Three checks in one place, easy to test, easy to extend.
 
-### Per-key reload diffing
+### In-place settings updates across tabs
 
-Most settings changes (keywords, enabled, snooze) reload every open tab. The `disabledSites` change is hostname-specific — the listener diffs old vs. new and only reloads if this tab's hostname's disabled state actually flipped. Prevents unnecessary reloads of unrelated tabs when toggling site-specific settings.
+Settings changes (adding keywords, toggling snooze, changing per-site disable) apply in real-time across every open tab without reloads. The content script subscribes to `chrome.storage.onChanged` and runs a refresh cycle: clear all currently-blurred elements (queried by CSS class so React-stripped cases are handled correctly), re-evaluate the `shouldScan` predicate, and re-scan `document.body` with the new settings.
+
+The unblur step removes both classes *and* event listeners — the reveal handler was extracted from an inline closure to a stable module-level reference so `removeEventListener` actually works. No scroll position lost, no playback interrupted. Significantly better UX than reload-on-change, which had been the naive original implementation.
 
 ## Performance
 
