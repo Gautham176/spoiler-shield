@@ -6,6 +6,8 @@ A Chrome extension that blurs spoilers about anything — TV shows, movies, spor
 
 **[Install on the Chrome Web Store →](https://chrome.google.com/webstore/detail/EXTENSION_ID)** *(coming soon — pending review)*
 
+[Privacy policy](https://gautham176.github.io/spoiler-shield/privacy) · [Report an issue](https://github.com/Gautham176/spoiler-shield/issues)
+
 ## What it does
 
 - **One-click setup**: tap any popular topic — Succession, NFL, Marvel, GTA 6, and 19 more — to instantly add 15-25 related keywords (character names, players, locations, plot terms)
