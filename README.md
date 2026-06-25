@@ -4,7 +4,7 @@ A Chrome extension that blurs spoilers about anything — TV shows, movies, spor
 
 ![Spoiler Cloak in action](docs/demo.gif)
 
-**[Install on the Chrome Web Store →](https://chrome.google.com/webstore/detail/EXTENSION_ID)** *(coming soon — pending review)*
+**[Install on the Chrome Web Store](https://chromewebstore.google.com/detail/spoiler-cloak/nhllpjfnjdmdcflkncigilggkdcmmjpf)**
 
 [Privacy policy](https://gautham176.github.io/spoiler-shield/privacy) · [Report an issue](https://github.com/Gautham176/spoiler-shield/issues)
 
